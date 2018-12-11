@@ -1,16 +1,51 @@
+using Assets.UI.Scripts.Classes.UiItems.View.MenuItems;
 using System;
+using System.Globalization;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class CUIColorPicker : MonoBehaviour
+public class CUIColorPicker : VirtualKeyboard
 {
     public Color Color { get { return _color; } set { Setup( value ); } }
+
+    public string OriginalValue { get; private set; }
+
+    public string StringValue
+    {
+        get { return ColorToString(Color); }
+        set { Setup(StringToColor(value)); }
+    }
+
+    public string _Target { get; private set; }
+
+    public override void SetData(PopUp _popUp)
+    {
+        OriginalValue = _popUp._Title;
+        StringValue = OriginalValue;
+        _Target = _popUp._Message;
+
+        thisInstance.transform.parent.parent.GetComponent<Text>().text = _Target;
+        thisInstance.transform.parent.parent.GetComponent<Text>().color = StringToColor(StringValue);
+    }
+
+    public override void OnEnable()
+    {
+        thisInstance = this.gameObject;
+        Value = transform.parent.GetComponent<PopUpGrid>()._PopUp._Title;
+        _Target = transform.parent.GetComponent<PopUpGrid>()._PopUp._Target;
+
+        
+    }
+
     public void SetOnValueChangeCallback( Action<Color> onValueChange )
     {
         _onValueChange = onValueChange;
+       
     }
     private Color _color = Color.red;
     private Action<Color> _onValueChange;
+    private OnLeave _valueChanged;
     private Action _update;
 
     private static void RGBToHSV( Color color, out float h, out float s, out float v )
@@ -49,6 +84,35 @@ public class CUIColorPicker : MonoBehaviour
     private GameObject GO( string name )
     {
         return transform.Find( name ).gameObject;
+    }
+
+    public static string ColorToString(Color color)
+    {
+        var _alpha = "";
+        if (color.a != 255)
+        {
+            _alpha = "-" + color.a.ToString("0.00");
+        }
+        
+        return color.r.ToString("0.00") +"-" + color.g.ToString("0.00") + "-" + color.b.ToString("0.00") + _alpha;
+    }
+
+    public static Color StringToColor(string HtmlString)
+    {
+        var _splitString = HtmlString.Split('-').Where(c => !string.IsNullOrEmpty(c)).ToArray();
+        float _alpha = 255;
+        if (_splitString.Length > 3)
+        {
+            _alpha = float.Parse(_splitString[3], NumberStyles.Any);
+        }
+        Debug.Log(HtmlString);
+        return new Color()
+        {
+            r = float.Parse(_splitString[0], NumberStyles.Any),
+            g = float.Parse(_splitString[1], NumberStyles.Any),
+            b = float.Parse(_splitString[2], NumberStyles.Any),
+            a = _alpha
+        };
     }
 
     private void Setup( Color inputColor )
@@ -110,9 +174,16 @@ public class CUIColorPicker : MonoBehaviour
             var resImg = result.GetComponent<Image>();
             resImg.color = resultColor;
             if ( _color != resultColor ) {
-                if ( _onValueChange != null ) {
-                    _onValueChange( resultColor );
-                }
+                //_onValueChange?.Invoke(resultColor);
+                Leave.Invoke(this, new KeyboardEventArgs()
+                {
+                    Target = _Target,
+                    type = typeof(string),
+                    Value = ColorToString(resultColor)
+                });
+                thisInstance.transform.parent.parent.GetComponent<Text>().text = _Target;
+                thisInstance.transform.parent.parent.GetComponent<Text>().color = StringToColor(StringValue);
+
                 _color = resultColor;
             }
         };
@@ -155,6 +226,11 @@ public class CUIColorPicker : MonoBehaviour
             }
         };
         _update = idle;
+    }
+
+    void Start()
+    {
+        thisInstance = this.gameObject;
     }
 
     public void SetRandomColor()
